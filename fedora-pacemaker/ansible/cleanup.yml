@@ -1,0 +1,18 @@
+- hosts: all
+  tasks:
+    - name: Cleanup Pacemaker Resources
+      ansible.builtin.debug:
+        msg: "Clean up Script"
+
+    - name: Delete virtual-ip Pacemaker Resource
+      community.general.pacemaker_resource:
+        state: delete
+        name: virtual-ip
+      check_mode: false
+
+    - name: Validate that virtual-ip Pacemaker Resource does not exist
+      community.general.pacemaker_resource:
+        state: status
+        name: virtual-ip
+      register: test_initial_virtual_ip_status
+      failed_when: not test_initial_virtual_ip_status.failed

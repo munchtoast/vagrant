@@ -1,0 +1,17 @@
+- hosts: all
+  tasks:
+    - name: Authenticate the cluster Nodes
+      ansible.builtin.command: |
+        pcs host auth \
+        pc1 pc2 pc3 \
+        -u hacluster -p Test123ABC!
+      register: auth_cluster_status
+      changed_when: "'Authorized' in auth_cluster_status.stdout"
+
+    - name: Create RHEL HA Cluster
+      ansible.builtin.command: |
+        pcs cluster setup hacluster \
+        pc1 pc2 pc3 --start --enable \
+      register: create_cluster_status
+      changed_when: "'Cluster has been successfully set up' in create_cluster_status.stdout"
+      run_once: true

@@ -1,0 +1,92 @@
+- hosts: all
+  tasks:
+    - name: Run Integrations Test Scripts
+      ansible.builtin.debug:
+        msg: "Run integration tests!"
+    
+    - name: Validate that virtual-ip Pacemaker Resource does not exist
+      community.general.pacemaker_resource:
+        state: status
+        name: virtual-ip
+      register: test_initial_virtual_ip_status
+      failed_when: not test_initial_virtual_ip_status.failed
+
+    - name: Create virtual-ip Pacemaker Resource
+      community.general.pacemaker_resource:
+        state: create
+        name: virtual-ip
+        resource_type:
+          resource_provider: heartbeat
+          resource_standard: ocf
+          resource_name: IPaddr2
+        resource_option: 
+          - "ip=192.168.1.100"
+        resource_operation:
+          - operation_action: "monitor"
+            operation_option: "interval=30s"
+          - operation_action: "start"
+            operation_option: "timeout=600s"
+        resource_meta:
+          - target-role=Started
+        resource_arguments:
+          argument_action: clone
+          argument_option:
+            - "notify=true"
+            - "clone-max=5"
+        disabled: true
+        wait: 1000 # Wait a thousand seconds
+      check_mode: false
+      ignore_errors: true
+
+    - name: Create virtual-ip Pacemaker Resource (Idempotent)
+      community.general.pacemaker_resource:
+        state: create
+        name: virtual-ip
+        resource_type:
+          resource_provider: heartbeat
+          resource_standard: ocf
+          resource_name: IPaddr2
+        resource_option: 
+          - "ip=192.168.1.100"
+        resource_operation:
+          - operation_action: "monitor"
+            operation_option: "interval=30s"
+          - operation_action: "start"
+            operation_option: "timeout=600s"
+        resource_meta:
+          - target-role=Started
+        resource_arguments:
+          argument_action: clone
+          argument_option:
+            - "notify=true"
+            - "clone-max=5"
+        disabled: false
+        wait: 1000 # Wait a thousand seconds
+      check_mode: false
+      ignore_errors: true
+
+    - name: Test Delete state if persist resource is disabled
+      when: not persist_resources
+      block:
+        - name: Delete virtual-ip Pacemaker Resource
+          community.general.pacemaker_resource:
+            state: delete
+            name: virtual-ip
+          check_mode: false
+
+        - name: Delete virtual-ip Pacemaker Resource (Idempotent)
+          community.general.pacemaker_resource:
+            state: delete
+            name: virtual-ip
+          check_mode: false
+
+        - name: Validate that virtual-ip Pacemaker Resource does not exist
+          community.general.pacemaker_resource:
+            state: status
+            name: virtual-ip
+          register: test_initial_virtual_ip_status
+          failed_when: not test_initial_virtual_ip_status.failed
+
+    - name: End Integrations Test Scripts
+      ansible.builtin.debug:
+        msg: "End integration tests!"

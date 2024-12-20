@@ -1,0 +1,88 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Configure based on vagrant version 2
+Vagrant.configure("2") do |config|
+  # Settings to access Docker image
+  config.ssh.username = 'root'
+  config.ssh.private_key_path = "~/.ssh/id_rsa"
+  config.vm.synced_folder "", "/community.general", disabled: false
+  # config.vm.synced_folder "/var/run/docker.sock", "/var/docker.sock", :mount_options => ["ro"], owner: "root", group: "root", disabled: false
+  # config.vm.synced_folder "/etc/localtime", "/etc/localtime", :mount_options => ["ro"], owner: "root", group: "root", disabled: false
+  # config.vm.synced_folder "/usr/local/bin/com.docker.cli", "/usr/bin/docker", :mount_options => ["ro"], owner: "root", group: "root", disabled: false
+
+  # Deploy with Docker built image. Note that there's a bug with vagrant and multiple boxes.
+  # May need to provision separately (i.e. 'vagrant provision')
+  config.vm.define "pc1" do |docker|
+    docker.vm.provider "docker" do |d|
+      d.build_dir = "./docker" # Specifies Dockerfile location
+      d.has_ssh         = true
+      d.remains_running = true
+      d.privileged = true
+    end
+    docker.vm.network :private_network, type: "dhcp", ip: "172.20.160.2", netmask: 16
+    docker.vm.hostname = "pc1"
+  end
+
+  config.vm.define "pc2" do |docker|
+    docker.vm.provider "docker" do |d|
+      d.build_dir = "./docker" # Specifies Dockerfile location
+      d.has_ssh         = true
+      d.remains_running = true
+      d.privileged = true
+    end
+    docker.vm.network :private_network, type: "dhcp", ip: "172.20.160.3", netmask: 16
+    docker.vm.hostname = "pc2"
+  end
+
+  config.vm.define "pc3" do |docker|
+    docker.vm.provider "docker" do |d|
+      d.build_dir = "./docker" # Specifies Dockerfile location
+      d.has_ssh         = true
+      d.remains_running = true
+      d.privileged = true
+    end
+    docker.vm.network :private_network, type: "dhcp", ip: "172.20.160.4", netmask: 16
+    docker.vm.hostname = "pc3"
+  end
+
+  config.vm.provision :hostmanager
+
+  # vagrant provision --provision-with shell
+  config.vm.provision "shell", inline: <<-SHELL
+    echo "172.17.0.2  pc1" | sudo tee -a /etc/hosts
+    echo "172.17.0.3  pc2" | sudo tee -a /etc/hosts
+    echo "172.17.0.4  pc3" | sudo tee -a /etc/hosts
+  SHELL
+
+  # Playbooks to be ran locally to docker container
+  # vagrant provision --provision-with init-users
+  config.vm.provision "init-users", type: "ansible" do |ansible|
+    ansible.playbook = "ansible/setup-user-and-service.yml" # Can be pointed to a different playbook path
+    ansible.compatibility_mode = "2.0" # Minimal version set. Given that ansible 1.x varies greatly from 2.x, please always use 2.0.
+  end
+
+  # This must be limited to ONLY one host
+  # vagrant provision pc1 --provision-with init-cluster
+  config.vm.provision "init-cluster", type: "ansible" do |ansible|
+    ansible.playbook = "ansible/setup-environment.yml" # Can be pointed to a different playbook path
+    ansible.compatibility_mode = "2.0" # Minimal version set. Given that ansible 1.x varies greatly from 2.x, please always use 2.0.
+    ansible.limit = "pc1"
+  end
+
+  # vagrant provision --provision-with test-cluster
+  config.vm.provision "test-cluster", type: "ansible" do |ansible|
+    ansible.playbook = "ansible/integrated-test.yml"
+    ansible.compatibility_mode = "2.0"
+    ansible.extra_vars = {
+      persist_resources: true
+    }
+#    ansible.verbose = "vvv"
+  end 
+
+  # vagrant provision --provision-with cleanup
+  config.vm.provision "cleanup", type: "ansible" do |ansible|
+    ansible.playbook = "ansible/cleanup.yml"
+    ansible.compatibility_mode = "2.0"
+  end 
+end
